@@ -1,0 +1,34 @@
+# FastAPI Framework
+fastapi
+uvicorn
+
+# Database
+sqlalchemy
+asyncpg
+alembic
+
+# MySQL Driver (for LHU Student Sync)
+aiomysql
+
+# HTTP Client
+httpx
+
+# Environment & Config
+pydantic-settings
+python-dotenv
+
+# Security & Auth
+python-jose
+
+# Validation
+email-validator
+
+# CORS
+python-multipart
+
+# Background Tasks & Scheduling
+APScheduler
+pytz
+
+# MongoDB Driver
+motor

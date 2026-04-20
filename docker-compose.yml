@@ -1,0 +1,83 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: tlms-db
+    restart: unless-stopped
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-tlms}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-tlms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tlms-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tlms-backend
+    restart: unless-stopped
+    environment:
+      APP_NAME: TLMS
+      APP_ENV: production
+      DEBUG: "false"
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-tlms}
+      S4H_AUTH_BASE_URL: ${S4H_AUTH_BASE_URL:-http://api-auth.aisteamx.edu.vn}
+      LHU_API_BASE_URL: ${LHU_API_BASE_URL:-https://tapi.lhu.edu.vn}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://tlms-frontend:3000}
+      WEBHOOK_API_KEY: "l9BHZ7OTKauxGBduz5JqSmWGXUFPWTJ7"
+      # MongoDB for User Import
+      MONGODB_CONNECTION_STRING: ${MONGODB_CONNECTION_STRING:-mongodb://checkin:5rXC8qGcFR7qyt7IamBCOQgj@116.118.50.179:27017/checkin_service}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-checkin_service}
+      MONGODB_USERS_COLLECTION: ${MONGODB_USERS_COLLECTION:-users}
+      # User Import Security Token
+      USER_IMPORT_SECRET_TOKEN: ${USER_IMPORT_SECRET_TOKEN:-TLMS_1MP0RT_S3CR3T_K3Y_2026_X7Z9Q2W4}
+    depends_on:  
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - tlms-network
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+    container_name: tlms-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - tlms-network
+      - nginx_default
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  tlms-network:
+    driver: bridge
+  nginx_default:
+    external: true
